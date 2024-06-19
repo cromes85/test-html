@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Capture et extraction de texte</title>
+    <title>Capture et détection de bords</title>
     <style>
         #canvas {
             border: 1px solid black;
@@ -16,6 +16,7 @@
             display: none;
         }
     </style>
+    <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
 </head>
 
 <body>
@@ -23,8 +24,8 @@
     <input type="file" id="cameraInput" accept="image/*" capture="camera">
     <br>
     <canvas id="canvas"></canvas>
-    <div id="cropArea"></div>
     <br>
+    <button id="detectEdges">Détecter les bords</button>
     <button id="extractText">Extraire le texte</button>
     <p id="extractedText"></p>
 
@@ -33,12 +34,11 @@
         const cameraInput = document.getElementById('cameraInput');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const cropArea = document.getElementById('cropArea');
+        const detectEdgesButton = document.getElementById('detectEdges');
         const extractTextButton = document.getElementById('extractText');
         const extractedText = document.getElementById('extractedText');
 
         let image = new Image();
-        let startX, startY, endX, endY;
 
         cameraInput.addEventListener('change', event => {
             const file = event.target.files[0];
@@ -54,42 +54,21 @@
             reader.readAsDataURL(file);
         });
 
-        canvas.addEventListener('mousedown', event => {
-            const rect = canvas.getBoundingClientRect();
-            startX = event.clientX - rect.left;
-            startY = event.clientY - rect.top;
-            cropArea.style.left = `${startX}px`;
-            cropArea.style.top = `${startY}px`;
-            cropArea.style.display = 'block';
-            cropArea.style.width = '0px';
-            cropArea.style.height = '0px';
+        detectEdgesButton.addEventListener('click', () => {
+            let src = cv.imread(canvas);
+            let dst = new cv.Mat();
+            cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
+            cv.Canny(src, dst, 50, 100, 3, false);
+            cv.imshow('canvas', dst);
+            src.delete();
+            dst.delete();
         });
 
-        canvas.addEventListener('mousemove', event => {
-            if (cropArea.style.display === 'block') {
-                const rect = canvas.getBoundingClientRect();
-                endX = event.clientX - rect.left;
-                endY = event.clientY - rect.top;
-                cropArea.style.width = `${endX - startX}px`;
-                cropArea.style.height = `${endY - startY}px`;
-            }
-        });
-
-        canvas.addEventListener('mouseup', () => {
-            cropArea.style.display = 'none';
-            const width = endX - startX;
-            const height = endY - startY;
-            const croppedImage = ctx.getImageData(startX, startY, width, height);
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = width;
-            tempCanvas.height = height;
-            tempCanvas.getContext('2d').putImageData(croppedImage, 0, 0);
-            extractTextButton.onclick = () => {
-                Tesseract.recognize(tempCanvas.toDataURL(), 'eng')
-                    .then(({ data: { text } }) => {
-                        extractedText.textContent = text;
-                    });
-            };
+        extractTextButton.addEventListener('click', () => {
+            Tesseract.recognize(canvas.toDataURL(), 'eng')
+                .then(({ data: { text } }) => {
+                    extractedText.textContent = text;
+                });
         });
     </script>
 </body>

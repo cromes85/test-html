@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Capture et extraction de texte</title>
+    <style>
+        #canvas {
+            border: 1px solid black;
+        }
+
+        #cropArea {
+            border: 2px dashed red;
+            position: absolute;
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Capture et extraction de texte</h1>
+    <input type="file" id="cameraInput" accept="image/*" capture="camera">
+    <br>
+    <canvas id="canvas"></canvas>
+    <div id="cropArea"></div>
+    <br>
+    <button id="extractText">Extraire le texte</button>
+    <p id="extractedText"></p>
+
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@2.1.4/dist/tesseract.min.js"></script>
+    <script>
+        const cameraInput = document.getElementById('cameraInput');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const cropArea = document.getElementById('cropArea');
+        const extractTextButton = document.getElementById('extractText');
+        const extractedText = document.getElementById('extractedText');
+
+        let image = new Image();
+        let startX, startY, endX, endY;
+
+        cameraInput.addEventListener('change', event => {
+            const file = event.target.files[0];
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                image.src = e.target.result;
+                image.onload = function () {
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    ctx.drawImage(image, 0, 0);
+                }
+            }
+            reader.readAsDataURL(file);
+        });
+
+        canvas.addEventListener('mousedown', event => {
+            const rect = canvas.getBoundingClientRect();
+            startX = event.clientX - rect.left;
+            startY = event.clientY - rect.top;
+            cropArea.style.left = `${startX}px`;
+            cropArea.style.top = `${startY}px`;
+            cropArea.style.display = 'block';
+            cropArea.style.width = '0px';
+            cropArea.style.height = '0px';
+        });
+
+        canvas.addEventListener('mousemove', event => {
+            if (cropArea.style.display === 'block') {
+                const rect = canvas.getBoundingClientRect();
+                endX = event.clientX - rect.left;
+                endY = event.clientY - rect.top;
+                cropArea.style.width = `${endX - startX}px`;
+                cropArea.style.height = `${endY - startY}px`;
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            cropArea.style.display = 'none';
+            const width = endX - startX;
+            const height = endY - startY;
+            const croppedImage = ctx.getImageData(startX, startY, width, height);
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            tempCanvas.getContext('2d').putImageData(croppedImage, 0, 0);
+            extractTextButton.onclick = () => {
+                Tesseract.recognize(tempCanvas.toDataURL(), 'eng')
+                    .then(({ data: { text } }) => {
+                        extractedText.textContent = text;
+                    });
+            };
+        });
+    </script>
+</body>
+
+</html>

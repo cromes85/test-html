@@ -9,12 +9,6 @@
         #canvas {
             border: 1px solid black;
         }
-
-        #cropArea {
-            border: 2px dashed red;
-            position: absolute;
-            display: none;
-        }
     </style>
     <script async src="https://docs.opencv.org/4.x/opencv.js" type="text/javascript"></script>
 </head>
@@ -25,7 +19,7 @@
     <br>
     <canvas id="canvas"></canvas>
     <br>
-    <button id="detectEdges">Détecter les bords</button>
+    <button id="detectCard">Détecter la carte</button>
     <button id="extractText">Extraire le texte</button>
     <p id="extractedText"></p>
 
@@ -34,7 +28,7 @@
         const cameraInput = document.getElementById('cameraInput');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const detectEdgesButton = document.getElementById('detectEdges');
+        const detectCardButton = document.getElementById('detectCard');
         const extractTextButton = document.getElementById('extractText');
         const extractedText = document.getElementById('extractedText');
 
@@ -54,14 +48,49 @@
             reader.readAsDataURL(file);
         });
 
-        detectEdgesButton.addEventListener('click', () => {
+        detectCardButton.addEventListener('click', () => {
             let src = cv.imread(canvas);
             let dst = new cv.Mat();
             cv.cvtColor(src, src, cv.COLOR_RGBA2GRAY, 0);
-            cv.Canny(src, dst, 50, 100, 3, false);
-            cv.imshow('canvas', dst);
+            cv.GaussianBlur(src, src, new cv.Size(5, 5), 0);
+            cv.Canny(src, dst, 75, 200);
+
+            let contours = new cv.MatVector();
+            let hierarchy = new cv.Mat();
+            cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+            let cardContour = null;
+            for (let i = 0; i < contours.size(); i++) {
+                let contour = contours.get(i);
+                let perimeter = cv.arcLength(contour, true);
+                let approx = new cv.Mat();
+                cv.approxPolyDP(contour, approx, 0.02 * perimeter, true);
+
+                if (approx.size().height === 4) {
+                    let rect = cv.boundingRect(approx);
+                    let aspectRatio = rect.width / rect.height;
+                    let cardAspectRatio = 63 / 88;
+                    if (Math.abs(aspectRatio - cardAspectRatio) < 0.1) {
+                        cardContour = approx;
+                        break;
+                    }
+                }
+                approx.delete();
+            }
+
+            if (cardContour) {
+                let rect = cv.boundingRect(cardContour);
+                let cardImg = src.roi(rect);
+                cv.imshow('canvas', cardImg);
+                cardImg.delete();
+            } else {
+                alert('Carte non détectée');
+            }
+
             src.delete();
             dst.delete();
+            contours.delete();
+            hierarchy.delete();
         });
 
         extractTextButton.addEventListener('click', () => {
